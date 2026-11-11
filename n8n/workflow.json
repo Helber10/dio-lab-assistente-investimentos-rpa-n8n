@@ -1,0 +1,475 @@
+{
+  "name": "Assistente de Investimentos RPA + Gemini - Entrega DIO (revisado)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "Clientes",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        -1712,
+        -384
+      ],
+      "id": "49a2d77b-c7bf-4cd8-8461-711512954a5a",
+      "name": "Webhook",
+      "webhookId": "25a22c6c-0aa7-4c94-90d5-7092ca293ecd"
+    },
+    {
+      "parameters": {
+        "url": "https://raw.githubusercontent.com/Helber10/dio-lab-assistente-investimentos-rpa-n8n/main/docs/data.csv",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -1488,
+        -304
+      ],
+      "id": "4af4faf8-806a-4532-b8bf-7c2cfe9f371f",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        752,
+        304
+      ],
+      "id": "bd0a7be7-b65c-4bb8-be38-f9a777859a95",
+      "name": "Webhook Clientes"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// 1. Receber CSV como texto\nconst csv = $input.first().json.data;\n\nif (typeof csv !== \"string\") {\n  throw new Error(\"CSV não encontrado no campo data\");\n}\n\n// 2. Converter CSV em objetos\nconst linhas = csv\n  .replace(/^\\uFEFF/, \"\")\n  .trim()\n  .split(/\\r?\\n/);\n\nconst colunas = linhas.shift()\n  .split(\",\")\n  .map(c => c.trim().toLowerCase());\n\nconst obrigatorias = [\"perfil\", \"produto\", \"minimo\", \"rentabilidade\"];\nif (!obrigatorias.every(c => colunas.includes(c))) {\n  throw new Error(\"CSV inválido: verifique a URL RAW e as colunas esperadas.\");\n}\n\nconst investimentos = linhas\n  .filter(l => l.trim())\n  .map(linha => {\n    const valores = linha.split(\",\");\n    const item = {};\n\n    colunas.forEach((coluna, i) => {\n      item[coluna] = valores[i]?.trim() ?? \"\";\n    });\n\n    return item;\n  });\n\n// 3. Formatar valores monetários\nfunction moeda(valor) {\n  const numero = Number(\n    String(valor).replace(\",\", \".\")\n  );\n\n  return numero.toLocaleString(\"pt-BR\", {\n    style: \"currency\",\n    currency: \"BRL\"\n  });\n}\n\n// 4. Proteger texto inserido no HTML\nfunction escapar(valor) {\n  return String(valor ?? \"\")\n    .replace(/&/g, \"&amp;\")\n    .replace(/</g, \"&lt;\")\n    .replace(/>/g, \"&gt;\")\n    .replace(/\"/g, \"&quot;\")\n    .replace(/'/g, \"&#39;\");\n}\n\n// 5. Criar linhas da tabela\nconst linhasHTML = investimentos.map(inv => {\n  const cores = {\n    conservador: \"#15803d\",\n    moderado: \"#b45309\",\n    arrojado: \"#b91c1c\"\n  };\n\n  const cor = cores[\n    String(inv.perfil).toLowerCase()\n  ] ?? \"#475569\";\n\n  return `\n    <tr>\n      <td>\n        <span style=\"color:${cor};font-weight:bold\">\n          ${escapar(inv.perfil)}\n        </span>\n      </td>\n      <td>${escapar(inv.produto)}</td>\n      <td>${moeda(inv.minimo)}</td>\n      <td>${escapar(inv.rentabilidade)}</td>\n    </tr>\n  `;\n}).join(\"\");\n\n// 6. Montar tabela HTML\nconst tabela_html = `\n<html>\n<head>\n<meta charset=\"UTF-8\">\n</head>\n<body style=\"font-family:Arial;background:#f1f5f9;padding:24px\">\n\n<h2 style=\"color:#0f172a\">\n  Assistente de Investimentos\n</h2>\n\n<p>Catálogo de opções por perfil de investidor</p>\n\n<table style=\"\n  width:100%;\n  border-collapse:collapse;\n  background:white;\n  border-radius:8px;\n  overflow:hidden;\n\">\n  <thead>\n    <tr style=\"background:#1e293b;color:white\">\n      <th style=\"padding:14px;text-align:left\">Perfil</th>\n      <th style=\"padding:14px;text-align:left\">Investimento</th>\n      <th style=\"padding:14px;text-align:left\">Mínimo</th>\n      <th style=\"padding:14px;text-align:left\">Rentabilidade</th>\n    </tr>\n  </thead>\n  <tbody>\n    ${linhasHTML}\n  </tbody>\n</table>\n\n<p style=\"font-size:12px;color:#64748b\">\n  Dados ilustrativos para fins educacionais.\n  Rentabilidade não garantida.\n</p>\n\n</body>\n</html>\n`;\n\n// 7. Manter estrutura compatível com o Merge\nreturn [{\n  json: {\n    total_investimentos: investimentos.length,\n    investimentos: investimentos,\n    tabela_html: tabela_html\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1264,
+        -304
+      ],
+      "id": "7c3affdb-0890-419b-a9e9-56eedd1a1428",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -1040,
+        -384
+      ],
+      "id": "3c48397d-3d57-47af-af68-cfe09ba768f9",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Dados recebidos do Merge\nconst dados = $input.first().json;\n\nconst clientes = dados.body?.clientes ?? [];\nconst investimentos = dados.investimentos ?? [];\n\n// Formatação monetária\nfunction moeda(valor) {\n  return Number(valor).toLocaleString(\"pt-BR\", {\n    style: \"currency\",\n    currency: \"BRL\"\n  });\n}\n\n// Converter valores da base\nfunction numero(valor) {\n  if (typeof valor === \"number\") return valor;\n\n  const texto = String(valor ?? \"\").trim()\n    .replace(/R\\$\\s*/g, \"\");\n\n  return Number(\n    texto.includes(\",\")\n      ? texto.replace(/\\./g, \"\").replace(\",\", \".\")\n      : texto\n  );\n}\n\n// Mensagens específicas por perfil\nconst explicacoes = {\n  conservador:\n    \"Seu perfil prioriza segurança e previsibilidade. \" +\n    \"É importante avaliar liquidez e riscos de cada produto.\",\n\n  moderado:\n    \"Seu perfil busca equilíbrio entre segurança \" +\n    \"e potencial de rentabilidade, aceitando oscilações moderadas.\",\n\n  arrojado:\n    \"Seu perfil admite maiores oscilações em busca \" +\n    \"de retornos potenciais mais elevados.\"\n};\n\n// Gerar mensagem individual\nreturn clientes.map(cliente => {\n\n  const perfil = String(cliente.perfil ?? \"\")\n    .trim().toLowerCase();\n\n  const saldo = numero(cliente.saldo);\n\n  if (!Number.isFinite(saldo) || saldo < 0) {\n    throw new Error(\"Saldo inválido: \" + cliente.nome);\n  }\n\n  const opcoes = investimentos.filter(inv =>\n    String(inv.perfil ?? \"\").trim().toLowerCase() === perfil &&\n    Number.isFinite(numero(inv.minimo)) &&\n    numero(inv.minimo) <= saldo\n  );\n\n  let mensagem =\n    `Olá, ${cliente.nome}! 👋\\n\\n` +\n    `Preparamos uma análise educacional com base ` +\n    `no seu perfil de investidor.\\n\\n` +\n    `📊 *Perfil:* ${cliente.perfil}\\n` +\n    `💰 *Saldo informado:* ${moeda(saldo)}\\n\\n` +\n    `${explicacoes[perfil] ?? \"Perfil não identificado.\"}\\n\\n`;\n\n  if (opcoes.length > 0) {\n    mensagem +=\n      `📈 *Opções disponíveis na base:*\\n\\n`;\n\n    opcoes.forEach((inv, i) => {\n      mensagem +=\n        `${i + 1}. *${inv.produto}*\\n` +\n        `   Aplicação mínima: ${moeda(numero(inv.minimo))}\\n` +\n        `   Rentabilidade ilustrativa: ${inv.rentabilidade}\\n\\n`;\n    });\n  } else {\n    mensagem +=\n      \"No momento, nenhuma opção da base atende \" +\n      \"ao seu perfil e ao valor mínimo de aplicação.\\n\\n\";\n  }\n\n  mensagem +=\n    \"⚠️ *Importante:* As informações são educativas, \" +\n    \"os rendimentos não são garantidos e esta mensagem \" +\n    \"não constitui recomendação financeira individual.\";\n\n  return {\n    json: {\n      nome: cliente.nome,\n      email: cliente.email,\n      perfil: cliente.perfil,\n      saldo,\n      investimentos: opcoes,\n      mensagem,\n      status: \"MENSAGEM_GERADA\"\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -816,
+        -384
+      ],
+      "id": "a5931e17-f9f7-484f-bea7-dae95c68406c",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Receber todos os clientes do Code1\nconst clientes = $input.all();\n\n// Formatar valores em reais\nfunction moeda(valor) {\n  return Number(valor).toLocaleString(\"pt-BR\", {\n    style: \"currency\",\n    currency: \"BRL\"\n  });\n}\n\n// Preparar um briefing para cada cliente\nreturn clientes.map(item => {\n\n  const cliente = item.json;\n\n  const nome = String(cliente.nome ?? \"\").trim();\n  const email = String(cliente.email ?? \"\").trim();\n  const perfil = String(cliente.perfil ?? \"\").trim();\n  const saldo = Number(cliente.saldo);\n\n  const investimentos = Array.isArray(cliente.investimentos)\n    ? cliente.investimentos\n    : [];\n\n  const lista = investimentos.map((inv, i) => {\n    return (\n      `${i + 1}. ${inv.produto}\\n` +\n      `Aplicação mínima: ${moeda(inv.minimo)}\\n` +\n      `Rentabilidade ilustrativa: ${inv.rentabilidade}`\n    );\n  }).join(\"\\n\\n\");\n\n  const briefing = `\nVocê é um assistente de comunicação financeira.\n\nCrie um e-mail personalizado para este cliente.\n\nNOME: ${nome}\nEMAIL: ${email}\nPERFIL: ${perfil}\nSALDO: ${moeda(saldo)}\n\nINVESTIMENTOS DISPONÍVEIS:\n${lista || \"Nenhuma opção compatível encontrada.\"}\n\nREGRAS:\n- Cumprimente o cliente pelo primeiro nome.\n- Explique brevemente seu perfil.\n- Utilize apenas os investimentos fornecidos.\n- Não invente produtos ou rentabilidades.\n- Não prometa lucros.\n- Inclua aviso de conteúdo educacional.\n- Não forneça recomendação financeira individual.\n\nRETORNE APENAS JSON VÁLIDO:\n{\n  \"assunto\": \"Assunto personalizado\",\n  \"mensagem\": \"Corpo completo do e-mail\"\n}\n`;\n\n  return {\n    json: {\n      nome,\n      email,\n      perfil,\n      saldo,\n      investimentos,\n      briefing,\n      status: \"PREPARADO_PARA_IA\"\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -592,
+        -384
+      ],
+      "id": "1ec98a02-7099-4ece-80ee-8d60af24effe",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.1-flash-lite",
+          "mode": "list",
+          "cachedResultName": "Gemini 3.1 Flash Lite"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $json.briefing }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        64,
+        -288
+      ],
+      "id": "82b59d31-cf4a-4348-a08a-2e2eed3c44de",
+      "name": "Message a model1",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Respostas do Gemini na iteração atual\nconst respostas = $input.all();\n\n// Recuperar o cliente correspondente ao item atual\nconst cliente = $(\"Loop Over Items\").item.json;\n\nif (!cliente || !cliente.nome) {\n  throw new Error(\"Cliente atual não encontrado no Loop.\");\n}\n\nreturn respostas.map(item => {\n\n  // Extrair texto do Gemini\n  const texto =\n    item.json.content?.parts\n      ?.map(p => p.text ?? \"\")\n      .join(\"\\n\") ??\n    item.json.text ??\n    \"\";\n\n  const limpo = String(texto)\n    .replace(/^```(?:json)?\\s*/i, \"\")\n    .replace(/\\s*```$/, \"\")\n    .trim();\n\n  let resposta;\n\n  try {\n    resposta = JSON.parse(limpo);\n  } catch {\n    resposta = {\n      assunto: `Informações sobre investimentos - ${cliente.nome}`,\n      mensagem: limpo\n    };\n  }\n\n  return {\n    json: {\n      nome: cliente.nome,\n      email: cliente.email,\n      perfil: cliente.perfil,\n      saldo: cliente.saldo,\n      investimentos: cliente.investimentos ?? [],\n      assunto: resposta.assunto,\n      mensagem: resposta.mensagem,\n      status: \"GERADO_COM_IA\"\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        -384
+      ],
+      "id": "fb3e3e8e-3c2a-4294-a302-64edad565b08",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.assunto }}",
+        "message": "={{ $json.mensagem }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        416,
+        -48
+      ],
+      "id": "9d5f531d-39d0-44d8-a304-949f6fe6cb50",
+      "name": "Send a message",
+      "webhookId": "110d6f7f-fb01-4c95-9aa1-af30735abee8"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "1d4287c0-c459-4dd0-a46f-0abfcbebe85a",
+              "leftValue": "={{ (() => {\n  const email = String($json.email ?? \"\").trim().toLowerCase();\n  const formatoValido = /^[^\\s@]+@[^\\s@]+\\.[a-z]{2,}$/i.test(email);\n  // Por segurança, lista vazia: nenhum envio real até configuração explícita.\n  // Para testar, adicione apenas seu endereço de e-mail autorizado.\n  const autorizados = [];\n  return formatoValido && autorizados.includes(email)\n    ? \"AUTORIZADO\" : \"BLOQUEADO\";\n})() }}",
+              "rightValue": "AUTORIZADO",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        656,
+        -384
+      ],
+      "id": "9b3e0369-5c64-45f9-bc10-34d24c6b74b8",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => ({\n  json: {\n    ...item.json,\n    status_envio: \"BLOQUEADO\",\n    motivo: \"Destinatário não autorizado para envio (dados fictícios de laboratório)\"\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        0
+      ],
+      "id": "582284ec-aecf-4e56-8cd8-e335f9c14ef1",
+      "name": "Code in JavaScript4"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        176,
+        256
+      ],
+      "id": "6f44da5b-8833-4c0c-9cd2-b39c9c43ad12",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 15,
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -144,
+        -320
+      ],
+      "id": "d8657541-5e83-42a2-ad43-04f126a61a39",
+      "name": "Wait",
+      "webhookId": "a6c9cb00-8404-470b-955d-99b6dc457964"
+    },
+    {
+      "parameters": {
+        "jsCode": "const resultados = $input.all().map(item => item.json);\nconst enviados = resultados.filter(r => r.status_envio === \"ENVIADO\");\nconst bloqueados = resultados.filter(r => r.status_envio === \"BLOQUEADO\");\nconst outros = resultados.filter(r => ![\"ENVIADO\", \"BLOQUEADO\"].includes(r.status_envio));\nreturn [{json:{\n  status: \"FINALIZADO\",\n  total_processados: resultados.length,\n  emails_enviados: enviados.length,\n  emails_bloqueados: bloqueados.length,\n  outros_resultados: outros.length,\n  clientes: resultados.map(r => ({\n    nome: r.nome ?? null,\n    email: r.email ?? null,\n    perfil: r.perfil ?? null,\n    status_envio: r.status_envio ?? \"NAO_CLASSIFICADO\",\n    motivo: r.motivo ?? null,\n    assunto: r.assunto ?? null\n  })),\n  data_relatorio: new Date().toISOString()\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        496,
+        304
+      ],
+      "id": "eac1bc92-4591-4ada-acd5-20ccc958a256",
+      "name": "Relatorio Final"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Executado apenas depois que o Gmail confirmar a operação Send.\n// Usa a iteração atual do Loop para evitar associar os dados à Ana em todos os itens.\nconst rodada = $(\"Loop Over Items\").context.currentRunIndex;\nconst cliente = $(\"Code in JavaScript3\").all(0, rodada)?.[0]?.json;\nif (!cliente?.email) {\n  throw new Error(\"Cliente da iteração atual não encontrado após o Gmail.\");\n}\nreturn [{ json: {\n  ...cliente,\n  status_envio: \"ENVIADO\",\n  gmail_message_id: $input.first().json.id ?? null,\n  gmail_thread_id: $input.first().json.threadId ?? null\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        -64
+      ],
+      "id": "c59f407d-7958-4a64-8d3e-06e09c11c247",
+      "name": "Registrar Email Enviado"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Clientes": {
+      "main": [
+        []
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Registrar Email Enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Relatorio Final",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Message a model1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript4": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Relatorio Final": {
+      "main": [
+        [
+          {
+            "node": "Webhook Clientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Email Enviado": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "nodeGroups": [],
+  "tags": []
+}
